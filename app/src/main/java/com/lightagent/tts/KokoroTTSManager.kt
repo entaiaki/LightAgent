@@ -202,6 +202,9 @@ class KokoroTTSManager private constructor(private val context: Context) {
             return
         }
 
+        // 强制媒体模式
+        audioManager.mode = AudioManager.MODE_NORMAL
+
         val track = AudioTrack(
             attr,
             AudioFormat.Builder()
@@ -213,6 +216,7 @@ class KokoroTTSManager private constructor(private val context: Context) {
             AudioTrack.MODE_STREAM,
             AudioManager.AUDIO_SESSION_ID_GENERATE
         )
+        currentTrack = track
 
         try {
             if (track.state != AudioTrack.STATE_INITIALIZED) {
@@ -220,9 +224,7 @@ class KokoroTTSManager private constructor(private val context: Context) {
                 return
             }
 
-            track.play()
-
-            // 同步写入，不用协程，防止被取消
+            // 先写入 PCM，再开始播放（避免 ROM underrun）
             var offset = 0
             while (offset < shorts.size) {
                 val end = minOf(offset + 4096, shorts.size)
@@ -230,6 +232,8 @@ class KokoroTTSManager private constructor(private val context: Context) {
                 if (written < 0) { Log.e(TAG, "write错误: $written"); break }
                 offset += written
             }
+
+            track.play()
 
             // 等缓冲区播完（用 Thread.sleep，不受协程取消影响）
             val durationMs = shorts.size.toLong() * 1000L / sampleRate
@@ -244,6 +248,7 @@ class KokoroTTSManager private constructor(private val context: Context) {
         } finally {
             try { track.stop() } catch (_: Exception) {}
             try { track.release() } catch (_: Exception) {}
+            currentTrack = null
             audioManager.abandonAudioFocusRequest(focusReq)
         }
     }
