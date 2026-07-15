@@ -527,10 +527,7 @@ class KokoroTTSManager private constructor(private val context: Context) {
             val vol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
             val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
             val muted = am.isStreamMute(AudioManager.STREAM_MUSIC)
-            val btOn = am.isBluetoothScoOn
-            val wired = am.isWiredHeadsetOn
-            val spOn = am.isSpeakerphoneOn
-            KokoroTTS.writeDebug("路由: 音量=$vol/$max mute=$muted BT=$btOn 有线=$wired 外放=$spOn")
+            KokoroTTS.writeDebug("路由: 音量=$vol/$max mute=$muted")
         } catch (_: Exception) {}
     }
 
@@ -551,9 +548,6 @@ class KokoroTTSManager private constructor(private val context: Context) {
             sb.appendLine("STREAM_MUSIC muted  = ${am.isStreamMute(AudioManager.STREAM_MUSIC)}")
             sb.appendLine("mode                = ${am.mode} (0=normal,1=ring,2=incall,3=comm)")
             sb.appendLine("isMusicActive       = ${am.isMusicActive}")
-            sb.appendLine("isSpeakerphoneOn    = ${am.isSpeakerphoneOn}")
-            sb.appendLine("isBluetoothScoOn    = ${am.isBluetoothScoOn}")
-            sb.appendLine("isWiredHeadsetOn    = ${am.isWiredHeadsetOn}")
             sb.appendLine("isVolumeFixed       = ${am.isVolumeFixed}")
 
             // 输出设备
