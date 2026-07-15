@@ -22,7 +22,10 @@ interface TTSController {
      */
     fun speak(text: String, onPlayback: (FloatArray, Int) -> Unit)
 
-    /** 立即停止当前播放（挂起函数，等待引擎完全停止） */
+    /** 开始朗读文本，不需要回调时可用此重载 */
+    fun speak(text: String) = speak(text) { _, _ -> }
+
+    /** 立即停止当前播放 */
     suspend fun stopSpeaking()
 
     /** 释放引擎资源 */

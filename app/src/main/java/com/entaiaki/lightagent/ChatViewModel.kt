@@ -3,9 +3,6 @@ package com.entaiaki.lightagent
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,9 +12,8 @@ import com.entaiaki.lightagent.live2d.Live2DController
 import com.entaiaki.lightagent.live2d.Live2DWebView
 import com.entaiaki.lightagent.service.FloatingPetService
 import com.entaiaki.lightagent.tts.SherpaOnnxTTSController
-import com.entaiaki.lightagent.tts.TTSController
+import com.entaiaki.lightagent.tts.TTSController  // ✅
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,8 +35,7 @@ data class ChatUiState(
     val messages: List<Message> = emptyList(),
     val isLoading: Boolean = false,
     val inputText: String = "",
-    val isFloatingMode: Boolean = false,
-    val isSpeaking: Boolean = false
+    val isFloatingMode: Boolean = false
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,27 +52,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var live2dController: Live2DController? = null
     private var ttsController: TTSController? = null
 
-    private val audioChannel = Channel<Pair<FloatArray, Int>>(Channel.UNLIMITED)
-
-    init {
-        startAudioPlaybackLoop()
-    }
-
-    // ========== Lifecycle ==========
-
-    fun initTTS(context: Context) {
-        if (ttsController == null) {
-            val controller = SherpaOnnxTTSController(context)
-            if (controller.isReady) {
-                ttsController = controller
-                observeTtsSpeakingState()
-                Log.d(TAG, "TTS controller initialized successfully")
-            } else {
-                Log.w(TAG, "TTS init failed – running without speech")
-            }
-        }
-    }
-
     fun attachLive2DController(controller: Live2DController) {
         live2dController = controller
     }
@@ -86,11 +60,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         live2dController = null
     }
 
+    fun initTTS(context: Context) {
+        if (ttsController == null) {
+            val controller = SherpaOnnxTTSController(context)
+            if (controller.isReady) {
+                ttsController = controller
+                Log.d("ChatViewModel", "TTS controller initialized successfully")
+            } else {
+                Log.w("ChatViewModel", "TTS init failed – running without speech")
+            }
+        }
+    }
+
     fun attachLive2DWebView(webView: Live2DWebView) {
         live2dController = CubismWebLive2DController(webView)
     }
-
-    // ========== Chat ==========
 
     fun updateInputText(text: String) {
         _uiState.update { it.copy(inputText = text) }
@@ -99,8 +83,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun sendMessage() {
         val text = _uiState.value.inputText.trim()
         if (text.isEmpty()) return
-
-        if (_uiState.value.isSpeaking) stopSpeaking()
 
         val userMsg = Message("user", text)
         _uiState.update {
@@ -168,72 +150,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ========== TTS + Emotion + Lip Sync ==========
-
     private fun speakAndAnimate(text: String) {
-        val controller = ttsController ?: return
         val emotion = EmotionAnalyzer.analyze(text)
         live2dController?.setEmotion(emotion)
-        live2dController?.startSpeaking()
-        controller.speak(text) { samples, sampleRate ->
-            audioChannel.trySend(Pair(samples, sampleRate))
-        }
-    }
-
-    fun stopSpeaking() {
-        viewModelScope.launch {
-            ttsController?.stopSpeaking()
+        viewModelScope.launch(Dispatchers.IO) {
+            live2dController?.startSpeaking()
+            ttsController?.speak(text)
             live2dController?.stopSpeaking()
         }
     }
-
-    // ========== 音频播放 Loop ==========
-
-    private fun startAudioPlaybackLoop() {
-        viewModelScope.launch(Dispatchers.IO) {
-            for ((samples, sampleRate) in audioChannel) {
-                playAudioSamples(samples, sampleRate)
-            }
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun playAudioSamples(samples: FloatArray, sampleRate: Int) {
-        try {
-            val bufferSize = AudioTrack.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_FLOAT
-            )
-            val audioTrack = AudioTrack(
-                AudioManager.STREAM_MUSIC,
-                sampleRate,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_FLOAT,
-                bufferSize,
-                AudioTrack.MODE_STREAM
-            )
-            audioTrack.play()
-            audioTrack.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
-            audioTrack.stop()
-            audioTrack.release()
-        } catch (e: Exception) {
-            Log.e(TAG, "Audio playback failed: ${e.message}")
-        }
-    }
-
-    // ========== TTS 状态同步到 UI ==========
-
-    private fun observeTtsSpeakingState() {
-        viewModelScope.launch {
-            ttsController?.isSpeaking?.collect { speaking ->
-                _uiState.update { it.copy(isSpeaking = speaking) }
-                if (!speaking) live2dController?.stopSpeaking()
-            }
-        }
-    }
-
-    // ========== Floating Pet ==========
 
     fun toggleFloatingMode(context: Context) {
         val isFloating = _uiState.value.isFloatingMode
@@ -246,12 +171,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ========== Helpers ==========
-
     private fun updateLastMessage(content: String) {
         _uiState.update { state ->
             val msgs = state.messages.toMutableList()
-            if (msgs.isNotEmpty()) msgs[msgs.size - 1] = msgs.last().copy(content = content)
+            if (msgs.isNotEmpty()) {
+                msgs[msgs.size - 1] = msgs.last().copy(content = content)
+            }
             state.copy(messages = msgs)
         }
     }
@@ -259,10 +184,5 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         ttsController?.shutdown()
-        audioChannel.close()
-    }
-
-    companion object {
-        private const val TAG = "ChatViewModel"
     }
 }

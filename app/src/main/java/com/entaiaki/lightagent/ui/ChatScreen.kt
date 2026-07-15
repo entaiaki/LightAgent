@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -81,17 +80,11 @@ fun ChatScreen(
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                if (uiState.isSpeaking) {
-                    IconButton(onClick = { viewModel.stopSpeaking() }) {
-                        Icon(Icons.Default.Stop, contentDescription = "停止播放")
-                    }
-                } else {
-                    IconButton(
-                        onClick = { viewModel.sendMessage() },
-                        enabled = uiState.inputText.isNotBlank()
-                    ) {
-                        Icon(Icons.Default.Send, contentDescription = "发送")
-                    }
+                IconButton(
+                    onClick = { viewModel.sendMessage() },
+                    enabled = uiState.inputText.isNotBlank()
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "发送")
                 }
             }
         }
