@@ -181,14 +181,14 @@ class KokoroTTSManager private constructor(private val context: Context) {
             (pcm[i].coerceIn(-1f, 1f) * 32767).toInt().toShort()
         }
 
-        val minBuf = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        ).takeIf { it > 0 } ?: run {
-            Log.e(TAG, "minBuf 无效")
-            return
-        }
+        val minBuf = maxOf(
+            AudioTrack.getMinBufferSize(
+                sampleRate,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            ).takeIf { it > 0 } ?: (sampleRate * 2 * 2),
+            shorts.size * 2 * 2  // 至少两秒缓冲
+        )
 
         // 请求音频焦点
         val attr = AudioAttributes.Builder()
@@ -235,15 +235,19 @@ class KokoroTTSManager private constructor(private val context: Context) {
 
             track.play()
 
-            // 等缓冲区播完（用 Thread.sleep，不受协程取消影响）
-            val durationMs = shorts.size.toLong() * 1000L / sampleRate
-            val deadline = System.currentTimeMillis() + durationMs + 1000L
-            while (System.currentTimeMillis() < deadline) {
-                if (track.playbackHeadPosition >= shorts.size) break
-                Thread.sleep(20)
+            // 设备检查：确认 Android 实际输出设备
+            if (Build.VERSION.SDK_INT >= 23) {
+                val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                devices.forEach { d ->
+                    Log.d(TAG, "output=${d.productName}, type=${d.type}")
+                }
             }
-            Log.d(TAG, "播放完成 headPos=${track.playbackHeadPosition} total=${shorts.size}")
-            KokoroTTS.writeDebug("播放完成 headPos=${track.playbackHeadPosition} total=${shorts.size}")
+
+            // 等待播放完成（不用 playbackHeadPosition，荣耀 ROM 不可靠）
+            val durationMs = shorts.size.toLong() * 1000L / sampleRate
+            Thread.sleep(durationMs + 300)
+            Log.d(TAG, "播放完成 duration=${durationMs}ms")
+            KokoroTTS.writeDebug("播放完成 duration=${durationMs}ms")
 
         } finally {
             try { track.stop() } catch (_: Exception) {}
