@@ -447,7 +447,7 @@ class KokoroTTSManager private constructor(private val context: Context) {
     )
 
     private fun monitoredPlay(pcm: FloatArray): PlayMonitorResult {
-        val sampleRate = 24000
+        val sampleRate = VitsTTS.SAMPLE_RATE
         val minBufferSize = AudioTrack.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,

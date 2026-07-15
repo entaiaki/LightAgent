@@ -18,7 +18,7 @@ import android.util.Log
  * 职责：播放前强制校正路由 + 设备热插拔自动切换
  * ├── 无外设 → 扬声器
  * ├── 有线耳机 → 走系统自动
- * └── 蓝牙 A2DP → 启动 BluetoothSco
+ * └── 蓝牙 A2DP → 不碰 SCO，交给系统自然路由
  */
 class AudioRouteManager private constructor(private val context: Context) {
 
@@ -86,11 +86,13 @@ class AudioRouteManager private constructor(private val context: Context) {
 
         when {
             hasBluetooth -> {
-                audioManager.isBluetoothScoOn = true
-                try { audioManager.startBluetoothSco() } catch (_: Exception) {}
+                // A2DP 是媒体输出，不要启动 SCO（那是通话模式）
+                audioManager.mode = AudioManager.MODE_NORMAL
+                audioManager.isBluetoothScoOn = false
+                try { audioManager.stopBluetoothSco() } catch (_: Exception) {}
                 audioManager.isSpeakerphoneOn = false
-                Log.d(TAG, "路由 → 蓝牙 A2DP/SCO")
-                KokoroTTS.writeDebug("路由 → 蓝牙")
+                Log.d(TAG, "路由 → 蓝牙 A2DP")
+                KokoroTTS.writeDebug("路由 → 蓝牙 A2DP")
             }
 
             hasWired -> {
