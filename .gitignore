@@ -81,6 +81,18 @@ Thumbs.db
 *.tmp
 temp_*
 
+# Non-code exports (keep off GitHub)
+*源码*.md
+*完整源码*.md
+task*.txt
+任务书*.txt
+source.md
+part*.md
+开发日志*.md
+
+# Raw character images (assets are under app/src/main/assets/)
+立绘*/
+
 # Embedded repos
 blog_repo/
 
