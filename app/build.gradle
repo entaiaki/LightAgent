@@ -77,6 +77,9 @@ dependencies {
     implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.20.0'
     implementation 'com.belerweb:pinyin4j:2.5.0'
 
+    // sherpa-onnx Java API（本地 JAR，需配合 jniLibs 使用）
+    implementation files('libs/sherpa-onnx-java-1.10.42.jar')
+
     // Jetpack WindowManager（折叠屏检测）
     implementation 'androidx.window:window:1.2.0'
 

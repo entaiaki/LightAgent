@@ -1,8 +1,7 @@
-package com.entaiaki.lightagentlive.live2d
+package com.entaiaki.lightagent.live2d
 
 /**
- * Cubism Web Live2D 控制器 — 通过 WebView JS bridge 控制 Live2D 模型。
- *
+ * Cubism Web Live2D 控制器 — JS bridge。
  * TODO: Task 1.4 完整实现
  */
 class CubismWebLive2DController(private val webView: Live2DWebView) : Live2DController {

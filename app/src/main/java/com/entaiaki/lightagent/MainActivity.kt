@@ -1,11 +1,11 @@
-package com.entaiaki.lightagentlive
+package com.entaiaki.lightagent
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
-import com.entaiaki.lightagentlive.ui.ChatScreen
+import com.entaiaki.lightagent.ui.ChatScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -15,7 +15,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 在 IO 线程初始化 TTS，不阻塞主线程
         lifecycleScope.launch(Dispatchers.IO) {
             viewModel.initTTS(this@MainActivity)
         }

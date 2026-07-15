@@ -1,4 +1,4 @@
-package com.entaiaki.lightagentlive.ui
+package com.entaiaki.lightagent.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.entaiaki.lightagentlive.ChatViewModel
+import com.entaiaki.lightagent.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +39,6 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 消息列表
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(16.dp),
@@ -49,15 +48,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     val msg = uiState.messages[i]
                     MessageBubble(role = msg.role, content = msg.content)
                 }
-
                 if (uiState.isLoading) {
-                    item {
-                        CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-                    }
+                    item { CircularProgressIndicator(modifier = Modifier.padding(8.dp)) }
                 }
             }
 
-            // 输入栏
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -71,9 +66,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     placeholder = { Text("输入消息...") },
                     singleLine = true
                 )
-
                 Spacer(modifier = Modifier.width(8.dp))
-
                 if (uiState.isSpeaking) {
                     IconButton(onClick = { viewModel.stopSpeaking() }) {
                         Icon(Icons.Default.Stop, contentDescription = "停止播放")

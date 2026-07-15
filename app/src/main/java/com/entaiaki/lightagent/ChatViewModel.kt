@@ -1,4 +1,4 @@
-package com.entaiaki.lightagentlive
+package com.entaiaki.lightagent
 
 import android.app.Application
 import android.content.Context
@@ -9,13 +9,13 @@ import android.media.AudioTrack
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.entaiaki.lightagentlive.agent.EmotionAnalyzer
-import com.entaiaki.lightagentlive.live2d.CubismWebLive2DController
-import com.entaiaki.lightagentlive.live2d.Live2DController
-import com.entaiaki.lightagentlive.live2d.Live2DWebView
-import com.entaiaki.lightagentlive.service.FloatingPetService
-import com.entaiaki.lightagentlive.tts.SherpaOnnxTTSController
-import com.entaiaki.lightagentlive.tts.TTSController
+import com.entaiaki.lightagent.agent.EmotionAnalyzer
+import com.entaiaki.lightagent.live2d.CubismWebLive2DController
+import com.entaiaki.lightagent.live2d.Live2DController
+import com.entaiaki.lightagent.live2d.Live2DWebView
+import com.entaiaki.lightagent.service.FloatingPetService
+import com.entaiaki.lightagent.tts.SherpaOnnxTTSController
+import com.entaiaki.lightagent.tts.TTSController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,19 +54,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // --- Controllers ---
     private var live2dController: Live2DController? = null
     private var ttsController: TTSController? = null
 
-    // --- 音频播放队列：TTS 每生成一句就塞进来，播放 loop 消费 ---
     private val audioChannel = Channel<Pair<FloatArray, Int>>(Channel.UNLIMITED)
 
     init {
         startAudioPlaybackLoop()
-        // observeTtsSpeakingState() 已移到 initTTS() 里，确保 ttsController 就绪后再挂
     }
 
     // ========== Lifecycle ==========
+
+    fun initTTS(context: Context) {
+        if (ttsController == null) {
+            val controller = SherpaOnnxTTSController(context)
+            if (controller.isReady) {
+                ttsController = controller
+                observeTtsSpeakingState()
+                Log.d(TAG, "TTS controller initialized successfully")
+            } else {
+                Log.w(TAG, "TTS init failed – running without speech")
+            }
+        }
+    }
 
     fun attachLive2DController(controller: Live2DController) {
         live2dController = controller
@@ -76,23 +86,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         live2dController = null
     }
 
-    fun initTTS(context: Context) {
-        if (ttsController == null) {
-            val controller = SherpaOnnxTTSController(context)
-            if (controller.isReady) {
-                ttsController = controller
-                Log.d(TAG, "TTS controller initialized successfully")
-                // controller 就绪后再开始 observe，时序正确
-                observeTtsSpeakingState()
-            } else {
-                Log.w(TAG, "TTS init failed – running without speech")
-            }
-        }
-    }
-
     fun attachLive2DWebView(webView: Live2DWebView) {
         live2dController = CubismWebLive2DController(webView)
-        Log.d(TAG, "Live2D WebView controller attached")
     }
 
     // ========== Chat ==========
@@ -104,6 +99,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun sendMessage() {
         val text = _uiState.value.inputText.trim()
         if (text.isEmpty()) return
+
+        if (_uiState.value.isSpeaking) stopSpeaking()
 
         val userMsg = Message("user", text)
         _uiState.update {
@@ -175,23 +172,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun speakAndAnimate(text: String) {
         val controller = ttsController ?: return
-
-        // 先分析情绪、设置 Live2D 表情
         val emotion = EmotionAnalyzer.analyze(text)
         live2dController?.setEmotion(emotion)
-
-        // 启动 lip sync，TTS 开始说话
         live2dController?.startSpeaking()
-
         controller.speak(text) { samples, sampleRate ->
-            // 每生成一句就推进队列，不阻塞生成线程
             audioChannel.trySend(Pair(samples, sampleRate))
         }
     }
 
-    /**
-     * 打断当前 TTS 播放（用户主动触发，或新消息到来时调用）
-     */
     fun stopSpeaking() {
         viewModelScope.launch {
             ttsController?.stopSpeaking()
@@ -201,10 +189,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // ========== 音频播放 Loop ==========
 
-    /**
-     * 持续消费 audioChannel，顺序播放每一句的 PCM 数据。
-     * 与 TTS 生成解耦：生成快就先缓存，播完再取下一句。
-     */
     private fun startAudioPlaybackLoop() {
         viewModelScope.launch(Dispatchers.IO) {
             for ((samples, sampleRate) in audioChannel) {
@@ -213,6 +197,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun playAudioSamples(samples: FloatArray, sampleRate: Int) {
         try {
             val bufferSize = AudioTrack.getMinBufferSize(
@@ -239,18 +224,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // ========== TTS 状态同步到 UI ==========
 
-    /**
-     * 把 TTS 的 isSpeaking StateFlow 桥接到 ChatUiState，
-     * UI 可以直接用 uiState.isSpeaking 驱动按钮状态。
-     */
     private fun observeTtsSpeakingState() {
         viewModelScope.launch {
             ttsController?.isSpeaking?.collect { speaking ->
                 _uiState.update { it.copy(isSpeaking = speaking) }
-                // TTS 说完了，停掉 lip sync
-                if (!speaking) {
-                    live2dController?.stopSpeaking()
-                }
+                if (!speaking) live2dController?.stopSpeaking()
             }
         }
     }
@@ -273,9 +251,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun updateLastMessage(content: String) {
         _uiState.update { state ->
             val msgs = state.messages.toMutableList()
-            if (msgs.isNotEmpty()) {
-                msgs[msgs.size - 1] = msgs.last().copy(content = content)
-            }
+            if (msgs.isNotEmpty()) msgs[msgs.size - 1] = msgs.last().copy(content = content)
             state.copy(messages = msgs)
         }
     }
